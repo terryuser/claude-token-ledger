@@ -7,7 +7,6 @@ import type { On } from 'claude-code'
 export const NOW = Date.parse('2026-10-09T03:00:00.000Z')
 export const RESETS = '2026-10-09T07:00:00.000Z'
 export const WEEK_RESETS = '2026-10-12T00:00:00.000Z'
-export const DIR = 'C:/Users/me/.claude/token-log'
 
 // The engine hands fs hooks native paths; compare with forward slashes.
 const slash = (path: string): string => path.split(String.fromCharCode(92)).join('/')
