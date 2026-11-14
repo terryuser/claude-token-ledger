@@ -1,0 +1,13 @@
+{
+  "name": "token-ledger",
+  "description": "token-ledger: token usage tracking, a live usage band and limit-aware pause/resume for Claude Code",
+  "owner": { "name": "Terry Lau", "url": "https://github.com/terryuser" },
+  "plugins": [
+    {
+      "name": "token-ledger",
+      "source": "./token-ledger",
+      "description": "Token usage per session and 5-hour window: a live band, CSV logs, pause near the limit and auto-resume",
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Laid by Claude Code at each load; regenerated, never edited
+**/.claude-plugin/types/
+node_modules/
+
+# Built upload packages
+dist/
+
+# Local working notes
+**/PROGRESS.md

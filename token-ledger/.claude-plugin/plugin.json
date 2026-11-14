@@ -1,0 +1,27 @@
+{
+  "name": "token-ledger",
+  "version": "0.4.0",
+  "description": "Records tokens spent per session and per 5-hour plan window, pauses near the 5-hour or weekly limit and resumes after the reset",
+  "author": { "name": "Terry Lau", "url": "https://github.com/terryuser" },
+  "homepage": "https://github.com/terryuser/claude-token-ledger",
+  "repository": "https://github.com/terryuser/claude-token-ledger",
+  "license": "MIT",
+  "keywords": ["tokens", "usage", "rate-limit", "cost", "monitoring", "mod"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "pauseAtPercent": {
+      "type": "number",
+      "title": "Pause at % used",
+      "description": "Stop the running turn when the 5-hour or weekly limit reaches this percentage (50-100)",
+      "default": 95,
+      "min": 50,
+      "max": 100
+    },
+    "autoResume": {
+      "type": "boolean",
+      "title": "Auto-resume after reset",
+      "description": "Send a 'continue' prompt once the limit that paused the session has reset",
+      "default": true
+    }
+  }
+}
