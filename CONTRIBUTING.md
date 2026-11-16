@@ -49,6 +49,13 @@ It writes `dist/token-ledger-<version>.plugin`. Watch out: the desktop app prefe
 local install of the same plugin. While an upload exists, edits in your clone don't reach the desktop app.
 Remove the upload while developing, or upload the new package after each change.
 
+An installed copy also runs from Claude Code's plugin cache, which is keyed by version. After a change,
+bump `version` in `token-ledger/.claude-plugin/plugin.json`, run the command below, then start a new session:
+
+```bash
+claude plugin update token-ledger@token-ledger
+```
+
 ## Code layout
 
 | File | Role |
