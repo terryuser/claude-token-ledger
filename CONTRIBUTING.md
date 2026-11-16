@@ -37,6 +37,18 @@ Once Claude Code has loaded the plugin, it writes the API's type declarations to
 `token-ledger/.claude-plugin/types/`. Then `tsc -p token-ledger` type-checks the code. Don't commit that
 folder; it's generated.
 
+## Packaging
+
+Build the file that Claude's **Customize → Plugins → Upload** takes:
+
+```bash
+python scripts/pack.py
+```
+
+It writes `dist/token-ledger-<version>.plugin`. Watch out: the desktop app prefers an uploaded copy over a
+local install of the same plugin. While an upload exists, edits in your clone don't reach the desktop app.
+Remove the upload while developing, or upload the new package after each change.
+
 ## Code layout
 
 | File | Role |
