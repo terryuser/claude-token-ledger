@@ -3,6 +3,7 @@ import type { Engine } from 'claude-code/testing'
 
 import { countdown, meterFill, stackSegments, usageTone } from '../hooks/bars'
 import { compact } from '../hooks/format'
+import { barWidthFor, meterSegments } from '../hooks/view'
 import { setupWorld, step } from './harness'
 
 describe('bars', () => {
@@ -92,5 +93,31 @@ test('while paused the band says why and Resume now continues', async ($, on) =>
       expect(world.submitted.length).toBe(1)
     }
     await ui.unmount()
+  }
+})
+
+describe('layout', () => {
+  test('both bars share one width, and the meter splits it exactly', async () => {
+    expect(barWidthFor(140)).toBe(48)
+    expect(barWidthFor(50)).toBe(46 - 22 - 14) // inner 46, gutter 22, narrow tail room 14
+    const runs = meterSegments(0.28, 40, 'success')
+    expect(runs.reduce((sum, r) => sum + r.cells, 0)).toBe(40)
+    expect(meterSegments(0, 40, 'success').map(r => r.key)).toEqual(['meter-track'])
+  })
+})
+
+test('on every surface the session bar and the window meter are the same width', async ($, on) => {
+  setupWorld(on, 28)
+  await step($, 0)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    for (const columns of [120, 70, 50]) {
+      const ui = await $.ui.mount({ plugin: 'token-ledger', surface, component: 'AbovePrompt', props: bandProps(columns) })
+      const session = await ui.find({ key: 'session-bar' })
+      const meter = await ui.find({ key: 'window-bar' })
+      expect(session?.props.width).toBe(barWidthFor(columns))
+      expect(meter?.props.width).toBe(session?.props.width)
+      await ui.unmount()
+    }
   }
 })

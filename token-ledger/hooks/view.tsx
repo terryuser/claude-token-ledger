@@ -1,14 +1,18 @@
 // The band's drawing. Pure: it takes the surface's elements and the data, never `$`.
 //
-//   ╭──────────────────────────────────────────────────────────────────────╮
-//   │ ◆ Session   1.24M  ████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒                      │
-//   │                    ● in 3.4k  ● out 12k  ● cache read 1.1M  ● …     │
-//   │ ◷ 5h window 4.5M   █████░░░░░░░░░░░░░░░░░░░  23% · resets 15:00 · 2h 14m │
-//   ╰──────────────────────────────────────────────────────────────────────╯
+//   ╭──────────────────────────────────────────────────────────────────────────╮
+//   │ ◆ Session    1158.3M  [▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇]                     │
+//   │                       ● input 20.3k  ● output 4.07M  ● cache read 1144.3M  ● … │
+//   │ ◷ 5h window   262.7M  [▇▇▇▇▇▇▇▇▇·······················]  28% used · resets … │
+//   ╰──────────────────────────────────────────────────────────────────────────╯
 //
 // While paused, a warning row leads the card and the border turns amber:
 //   │ ⏸ Paused    weekly limit at 96% · auto-resume 10-18 15:12 · in 1d 3h  [ Resume now ] [ Cancel ] │
-import type { BoxProps, ButtonProps, ElementConstructor, TextProps } from 'claude-code'
+//
+// Layout rule: the desktop draws text in a proportional font, so nothing is sized by counting
+// characters. Bars are Boxes of a fixed cell width filled with a background colour, labels and
+// values sit in fixed slots that never shrink, and only the trailing text may be cut short.
+import type { BoxProps, ButtonProps, Color, ElementConstructor, TextProps } from 'claude-code'
 
 import type { PauseRecord, Snapshot, WindowSummary } from '../types'
 import { PARTS, countdown, meterFill, stackSegments, usageTone } from './bars'
@@ -38,19 +42,28 @@ export type BandModel = {
   pause: PauseModel | null
 }
 
-const LABEL_WIDTH = 12
-const VALUE_WIDTH = 7
+/** One coloured run of a bar, `cells` wide. */
+export type BarSegment = { key: string; color: Color; cells: number }
+
+const LABEL_WIDTH = 13
+const VALUE_WIDTH = 9 // "1158.3M" plus a gap before the bar
+const GUTTER = LABEL_WIDTH + VALUE_WIDTH
 const CHROME = 4 // border (2) + paddingX (2)
 const NARROW = 64
-const FULL = '█'
-const EMPTY = '░'
+const MAX_BAR = 48
+const MIN_BAR = 6
+const TAIL_ROOM = 34 // cells kept for "28% used · resets 03:40 · 2h 15m left"
+const NARROW_TAIL_ROOM = 14
+const TRACK: Color = 'inactive'
 
-const windowTail = (w: WindowSummary, now: number, isNarrow: boolean): string => {
+const windowTail = (w: WindowSummary, now: number, isNarrow: boolean): { headline: string; detail: string } => {
   const left = countdown(Math.max(0, w.end - now))
   const resets = localTime(w.end).slice(11, 16)
-  if (w.isEstimated) return isNarrow ? `~${left} left` : `~resets ${resets} · ${left} left (est.)`
+  if (w.isEstimated) {
+    return isNarrow ? { headline: `~${left}`, detail: '' } : { headline: `~resets ${resets}`, detail: `${left} left (est.)` }
+  }
   const used = `${w.percentUsed ?? 0}%`
-  return isNarrow ? `${used} · ${left}` : `${used} used · resets ${resets} · ${left} left`
+  return isNarrow ? { headline: used, detail: left } : { headline: `${used} used`, detail: `resets ${resets} · ${left} left` }
 }
 
 /** `15:12` today, `10-18 15:12` on another day. */
@@ -59,22 +72,46 @@ const whenText = (at: number, now: number): string => {
   return stamp.slice(0, 10) === localTime(now).slice(0, 10) ? stamp.slice(11, 16) : stamp.slice(5, 16)
 }
 
-export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, columns, pause }: BandModel) {
+/** The width both bars share, so the session bar and the window meter line up. */
+export const barWidthFor = (columns: number): number => {
   const inner = Math.max(20, columns - CHROME)
-  const isNarrow = inner < NARROW
+  const room = inner < NARROW ? NARROW_TAIL_ROOM : TAIL_ROOM
+  return Math.max(MIN_BAR, Math.min(MAX_BAR, inner - GUTTER - room))
+}
+
+/** The window meter's runs: the filled part in the usage tone, the rest as a dim track. */
+export const meterSegments = (fraction: number, width: number, tone: Color): BarSegment[] => {
+  const filled = meterFill(fraction, width)
+  return [
+    { key: 'meter-fill', color: tone, cells: filled },
+    { key: 'meter-track', color: TRACK, cells: width - filled },
+  ].filter(s => s.cells > 0)
+}
+
+export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, columns, pause }: BandModel) {
+  const isNarrow = Math.max(20, columns - CHROME) < NARROW
+  const barWidth = barWidthFor(columns)
   const w = snapshot.window
-  const tail = w ? windowTail(w, now, isNarrow) : ''
-  const barWidth = Math.max(6, Math.min(48, inner - LABEL_WIDTH - VALUE_WIDTH - tail.length - 2))
 
   const label = (icon: string, text: string) => (
-    <Box width={LABEL_WIDTH}>
+    <Box width={LABEL_WIDTH} flexShrink={0}>
       <Text color="claude" bold>{icon} </Text>
-      <Text bold>{text}</Text>
+      <Text bold wrap="truncate">{text}</Text>
     </Box>
   )
   const value = (n: number) => (
-    <Box width={VALUE_WIDTH}>
+    <Box width={VALUE_WIDTH} flexShrink={0} justifyContent="flex-end" paddingRight={1}>
       <Text bold>{compact(n)}</Text>
+    </Box>
+  )
+  // A run is a Box of fixed width with a background colour: the same length on every surface.
+  const bar = (key: string, segments: BarSegment[]) => (
+    <Box key={key} width={barWidth} flexShrink={0}>
+      {segments.map(s => (
+        <Box key={s.key} width={s.cells} flexShrink={0} backgroundColor={s.color}>
+          <Text> </Text>
+        </Box>
+      ))}
     </Box>
   )
 
@@ -85,15 +122,18 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
       {snapshot.session.requests === 0 ? (
         <Text dimColor>no requests yet</Text>
       ) : (
-        stackSegments(snapshot.session, barWidth).map(s => <Text color={s.color}>{FULL.repeat(s.cells)}</Text>)
+        bar(
+          'session-bar',
+          stackSegments(snapshot.session, barWidth).map(s => ({ key: `session-${s.key}`, color: s.color, cells: s.cells })),
+        )
       )}
     </Box>
   )
 
   const legendRow = (
-    <Box paddingLeft={LABEL_WIDTH + VALUE_WIDTH} columnGap={2} flexWrap="wrap">
+    <Box paddingLeft={GUTTER} columnGap={2} flexWrap="wrap">
       {PARTS.map(p => (
-        <Box>
+        <Box key={`legend-${p.key}`} flexShrink={0}>
           <Text color={p.color}>● </Text>
           <Text dimColor>{isNarrow ? p.short : p.label} </Text>
           <Text>{compact(snapshot.session[p.key])}</Text>
@@ -107,17 +147,20 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
     const fraction = open.isEstimated
       ? (now - open.start) / (open.end - open.start)
       : (open.percentUsed ?? 0) / 100
-    const filled = meterFill(fraction, barWidth)
-    const tone = open.isEstimated ? 'inactive' : usageTone(open.percentUsed ?? 0)
-    const [headline, ...rest] = tail.split(' · ')
+    const tone: Color = open.isEstimated ? 'inactive' : usageTone(open.percentUsed ?? 0)
+    const { headline, detail } = windowTail(open, now, isNarrow)
     return (
       <Box>
         {label('◷', '5h window')}
         {value(grandTotal(open.totals))}
-        <Text color={tone}>{FULL.repeat(filled)}</Text>
-        <Text color="inactive">{EMPTY.repeat(barWidth - filled)}</Text>
-        <Text color={tone} bold={!open.isEstimated}> {headline}</Text>
-        <Text dimColor wrap="truncate">{rest.length > 0 ? ` · ${rest.join(' · ')}` : ''}</Text>
+        {bar('window-bar', meterSegments(fraction, barWidth, tone))}
+        <Box flexShrink={0} paddingLeft={1}>
+          <Text color={tone} bold={!open.isEstimated}>{headline}</Text>
+        </Box>
+        {/* The only part allowed to give way: cut short, never wrapped onto a second line. */}
+        <Box flexShrink={1} minWidth={0} overflow="hidden">
+          <Text dimColor wrap="truncate">{detail ? ` · ${detail}` : ''}</Text>
+        </Box>
       </Box>
     )
   }
@@ -127,7 +170,7 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
   ) : (
     <Box>
       {label('◷', '5h window')}
-      <Text dimColor>no requests in the current window yet</Text>
+      <Text dimColor wrap="truncate">no requests in the current window yet</Text>
     </Box>
   )
 
@@ -139,7 +182,7 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
       : 'auto-resume off · /tokens resume to continue'
     return (
       <Box columnGap={1} flexWrap="wrap">
-        <Box width={LABEL_WIDTH - 1}>
+        <Box width={LABEL_WIDTH - 1} flexShrink={0}>
           <Text color="warning" bold>⏸ Paused</Text>
         </Box>
         <Text color="warning">{limit}</Text>

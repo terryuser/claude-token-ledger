@@ -3,6 +3,14 @@
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-11-16
+
+### Fixed
+- The band's layout in the desktop app, which draws text in a proportional font. The session bar and the
+  5-hour meter are now fixed-width coloured runs, so they line up instead of differing in length. Labels and
+  totals sit in fixed slots, so a long total no longer pushes the bar. The "% used" headline no longer wraps
+  onto two lines; the reset detail is cut short instead.
+
 ## [0.4.0] - 2026-11-14
 
 First public release.
@@ -20,4 +28,5 @@ First public release.
   `token-usage` skill, so Claude can answer usage questions in plain words.
 - Settings: `pauseAtPercent`, `autoResume`.
 
+[0.4.1]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.1
 [0.4.0]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.0
