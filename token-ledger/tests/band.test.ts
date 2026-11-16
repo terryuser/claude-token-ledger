@@ -71,7 +71,7 @@ test('the band shows session totals, the legend and the window meter', async ($,
 
     const narrow = await textOf($, surface, 50)
     expect(narrow).toContain('c.read')
-    expect(narrow).toContain('23% · 4h 0m')
+    expect(narrow).toContain('23%  ·  4h 0m left')
   }
 })
 
@@ -98,8 +98,8 @@ test('while paused the band says why and Resume now continues', async ($, on) =>
 
 describe('layout', () => {
   test('both bars share one width, and the meter splits it exactly', async () => {
-    expect(barWidthFor(140)).toBe(48)
-    expect(barWidthFor(50)).toBe(46 - 22 - 14) // inner 46, gutter 22, narrow tail room 14
+    expect(barWidthFor(140)).toBe(64) // capped
+    expect(barWidthFor(50)).toBe(46 - 23) // inner 46 minus the label and value slots
     const runs = meterSegments(0.28, 40, 'success')
     expect(runs.reduce((sum, r) => sum + r.cells, 0)).toBe(40)
     expect(meterSegments(0, 40, 'success').map(r => r.key)).toEqual(['meter-track'])
@@ -117,6 +117,10 @@ test('on every surface the session bar and the window meter are the same width',
       const meter = await ui.find({ key: 'window-bar' })
       expect(session?.props.width).toBe(barWidthFor(columns))
       expect(meter?.props.width).toBe(session?.props.width)
+
+      // The status lives on its own line under the meter, never beside it.
+      expect((await ui.find({ key: 'window-status' }))?.text).toContain('28%')
+      expect(meter?.text ?? '').not.toContain('%')
       await ui.unmount()
     }
   }

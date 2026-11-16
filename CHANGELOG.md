@@ -3,6 +3,14 @@
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.2] - 2026-11-16
+
+### Changed
+- The 5-hour window's status ("35% used · resets 03:40 · 1h 55m left") moves to its own line under the
+  meter, like the legend under the session bar. No text shares a row with a bar any more, so nothing wraps
+  or drifts on the desktop app, and both bars use the freed width (up to 64 cells).
+- A wider label slot, so "5h window" no longer touches its total.
+
 ## [0.4.1] - 2026-11-16
 
 ### Fixed
@@ -28,5 +36,6 @@ First public release.
   `token-usage` skill, so Claude can answer usage questions in plain words.
 - Settings: `pauseAtPercent`, `autoResume`.
 
+[0.4.2]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.2
 [0.4.1]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.1
 [0.4.0]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.0

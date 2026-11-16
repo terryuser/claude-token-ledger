@@ -1,17 +1,22 @@
 // The band's drawing. Pure: it takes the surface's elements and the data, never `$`.
 //
 //   ╭──────────────────────────────────────────────────────────────────────────╮
-//   │ ◆ Session    1158.3M  [▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇]                     │
-//   │                       ● input 20.3k  ● output 4.07M  ● cache read 1144.3M  ● … │
-//   │ ◷ 5h window   262.7M  [▇▇▇▇▇▇▇▇▇·······················]  28% used · resets … │
+//   │ ◆ Session      59.7M  [▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇]      │
+//   │                       ● input 350  ● output 144.6k  ● cache read 57.2M  ● …  │
+//   │ ◷ 5h window   300.3M  [▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇·······························]      │
+//   │                       35% used  ·  resets 03:40  ·  1h 55m left              │
 //   ╰──────────────────────────────────────────────────────────────────────────╯
+//
+// Each bar has one quieter line beneath it, starting at the bar's left edge: the
+// legend under the session bar, the window's status under the meter.
 //
 // While paused, a warning row leads the card and the border turns amber:
 //   │ ⏸ Paused    weekly limit at 96% · auto-resume 10-18 15:12 · in 1d 3h  [ Resume now ] [ Cancel ] │
 //
 // Layout rule: the desktop draws text in a proportional font, so nothing is sized by counting
 // characters. Bars are Boxes of a fixed cell width filled with a background colour, labels and
-// values sit in fixed slots that never shrink, and only the trailing text may be cut short.
+// values sit in fixed slots that never shrink, and nothing shares a row with a bar, so no text
+// can push or wrap around one.
 import type { BoxProps, ButtonProps, Color, ElementConstructor, TextProps } from 'claude-code'
 
 import type { PauseRecord, Snapshot, WindowSummary } from '../types'
@@ -45,25 +50,24 @@ export type BandModel = {
 /** One coloured run of a bar, `cells` wide. */
 export type BarSegment = { key: string; color: Color; cells: number }
 
-const LABEL_WIDTH = 13
+const LABEL_WIDTH = 14 // "◷ 5h window" in a bold proportional font, with room to spare
 const VALUE_WIDTH = 9 // "1158.3M" plus a gap before the bar
 const GUTTER = LABEL_WIDTH + VALUE_WIDTH
 const CHROME = 4 // border (2) + paddingX (2)
 const NARROW = 64
-const MAX_BAR = 48
+const MAX_BAR = 64
 const MIN_BAR = 6
-const TAIL_ROOM = 34 // cells kept for "28% used · resets 03:40 · 2h 15m left"
-const NARROW_TAIL_ROOM = 14
 const TRACK: Color = 'inactive'
 
-const windowTail = (w: WindowSummary, now: number, isNarrow: boolean): { headline: string; detail: string } => {
-  const left = countdown(Math.max(0, w.end - now))
-  const resets = localTime(w.end).slice(11, 16)
+/** The window's status line: a headline in the usage tone, then dim details. */
+export const windowStatus = (w: WindowSummary, now: number, isNarrow: boolean): { headline: string; details: string[] } => {
+  const left = `${countdown(Math.max(0, w.end - now))} left`
+  const resets = `resets ${localTime(w.end).slice(11, 16)}`
   if (w.isEstimated) {
-    return isNarrow ? { headline: `~${left}`, detail: '' } : { headline: `~resets ${resets}`, detail: `${left} left (est.)` }
+    return { headline: isNarrow ? `~${left}` : `~${resets}`, details: isNarrow ? [] : [left, 'estimated'] }
   }
   const used = `${w.percentUsed ?? 0}%`
-  return isNarrow ? { headline: used, detail: left } : { headline: `${used} used`, detail: `resets ${resets} · ${left} left` }
+  return isNarrow ? { headline: used, details: [left] } : { headline: `${used} used`, details: [resets, left] }
 }
 
 /** `15:12` today, `10-18 15:12` on another day. */
@@ -75,8 +79,7 @@ const whenText = (at: number, now: number): string => {
 /** The width both bars share, so the session bar and the window meter line up. */
 export const barWidthFor = (columns: number): number => {
   const inner = Math.max(20, columns - CHROME)
-  const room = inner < NARROW ? NARROW_TAIL_ROOM : TAIL_ROOM
-  return Math.max(MIN_BAR, Math.min(MAX_BAR, inner - GUTTER - room))
+  return Math.max(MIN_BAR, Math.min(MAX_BAR, inner - GUTTER))
 }
 
 /** The window meter's runs: the filled part in the usage tone, the rest as a dim track. */
@@ -142,31 +145,31 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
     </Box>
   )
 
-  const meterRow = (open: WindowSummary) => {
+  // The meter and, beneath it, the status line, as a pair like the session bar and its legend.
+  const windowBlock = (open: WindowSummary) => {
     // A real window meters plan usage; an estimate can only meter elapsed time.
     const fraction = open.isEstimated
       ? (now - open.start) / (open.end - open.start)
       : (open.percentUsed ?? 0) / 100
     const tone: Color = open.isEstimated ? 'inactive' : usageTone(open.percentUsed ?? 0)
-    const { headline, detail } = windowTail(open, now, isNarrow)
+    const { headline, details } = windowStatus(open, now, isNarrow)
     return (
-      <Box>
-        {label('◷', '5h window')}
-        {value(grandTotal(open.totals))}
-        {bar('window-bar', meterSegments(fraction, barWidth, tone))}
-        <Box flexShrink={0} paddingLeft={1}>
-          <Text color={tone} bold={!open.isEstimated}>{headline}</Text>
+      <Box flexDirection="column">
+        <Box>
+          {label('◷', '5h window')}
+          {value(grandTotal(open.totals))}
+          {bar('window-bar', meterSegments(fraction, barWidth, tone))}
         </Box>
-        {/* The only part allowed to give way: cut short, never wrapped onto a second line. */}
-        <Box flexShrink={1} minWidth={0} overflow="hidden">
-          <Text dimColor wrap="truncate">{detail ? ` · ${detail}` : ''}</Text>
+        <Box key="window-status" paddingLeft={GUTTER}>
+          <Text color={tone} bold={!open.isEstimated}>{headline}</Text>
+          <Text dimColor wrap="truncate">{details.map(d => `  ·  ${d}`).join('')}</Text>
         </Box>
       </Box>
     )
   }
 
   const windowRow = w ? (
-    meterRow(w)
+    windowBlock(w)
   ) : (
     <Box>
       {label('◷', '5h window')}
