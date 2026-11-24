@@ -10,8 +10,12 @@
 // Each bar has one quieter line beneath it, starting at the bar's left edge: the
 // legend under the session bar, the window's status under the meter.
 //
-// While paused, a warning row leads the card and the border turns amber:
-//   │ ⏸ Paused    weekly limit at 96% · auto-resume 10-18 15:12 · in 1d 3h  [ Resume now ] [ Cancel ] │
+// While paused, a block leads the card and the border turns amber. Its lines start where the bars do:
+//   │ ⏸ Paused              5-hour limit at 96%                                        │
+//   │                       Auto-resume at 15:12 · in 1h 12m · subagents wait too       │
+//   │                       [ Resume now ]  [ Cancel auto-resume ]                      │
+//   │                                                                                  │
+//   │ ◆ Session ...                                                                    │
 //
 // Layout rule: the desktop draws text in a proportional font, so nothing is sized by counting
 // characters. Bars are Boxes of a fixed cell width filled with a background colour, labels and
@@ -177,21 +181,29 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
     </Box>
   )
 
-  const pauseRow = (p: PauseModel) => {
+  const pauseBlock = (p: PauseModel) => {
     const { record } = p
-    const limit = `${LIMIT_LABEL[record.kind]} limit at ${record.percentUsed}%`
+    const left = countdown(Math.max(0, record.resumeAt - now))
     const plan = p.autoResume
-      ? `auto-resume ${whenText(record.resumeAt, now)} · in ${countdown(Math.max(0, record.resumeAt - now))}`
-      : 'auto-resume off · /tokens resume to continue'
+      ? isNarrow
+        ? `Auto-resume in ${left}`
+        : `Auto-resume at ${whenText(record.resumeAt, now)} · in ${left} · subagents wait too`
+      : 'Auto-resume is off: press Resume now when ready'
     return (
-      <Box columnGap={1} flexWrap="wrap">
-        <Box width={LABEL_WIDTH - 1} flexShrink={0}>
+      <Box key="pause" marginBottom={1}>
+        <Box width={GUTTER} flexShrink={0}>
           <Text color="warning" bold>⏸ Paused</Text>
         </Box>
-        <Text color="warning">{limit}</Text>
-        <Text dimColor wrap="truncate">· {isNarrow ? countdown(Math.max(0, record.resumeAt - now)) : plan}</Text>
-        <Button key="resume" label="Resume now" variant="primary" onPress={p.onResume} />
-        {p.autoResume && <Button key="cancel" label="Cancel" onPress={p.onCancel} />}
+        <Box flexDirection="column" flexShrink={1} minWidth={0}>
+          <Text color="warning" bold wrap="truncate">
+            {LIMIT_LABEL[record.kind]} limit at {record.percentUsed}%
+          </Text>
+          <Text dimColor wrap="truncate">{plan}</Text>
+          <Box columnGap={2} flexWrap="wrap">
+            <Button key="resume" label="Resume now" variant="primary" onPress={p.onResume} />
+            {p.autoResume && <Button key="cancel" label="Cancel auto-resume" onPress={p.onCancel} />}
+          </Box>
+        </Box>
       </Box>
     )
   }
@@ -205,7 +217,7 @@ export function bandView({ Box, Text, Button }: BandElements, { snapshot, now, c
       paddingX={1}
       width={columns}
     >
-      {pause && pauseRow(pause)}
+      {pause && pauseBlock(pause)}
       {sessionRow}
       {snapshot.session.requests > 0 && legendRow}
       {windowRow}

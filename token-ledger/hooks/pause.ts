@@ -64,3 +64,16 @@ export const parseThreshold = (text: string, current: number): number => {
   const n = Number.parseFloat(text)
   return Number.isNaN(n) ? current : Math.min(100, Math.max(50, Math.round(n)))
 }
+
+/**
+ * What a held subagent returns to its parent in place of a model reply. It names the
+ * limit and says the work is unfinished, so the parent re-runs it after the resume.
+ *
+ * @param resumeAt local time of the auto-resume, or null when auto-resume is off
+ */
+export const subagentHoldNote = (pause: PauseRecord, resumeAt: string | null): string =>
+  `[token-ledger] Stopped before this step: the ${LIMIT_LABEL[pause.kind]} usage limit is at ` +
+  `${pause.percentUsed}%. This subagent's task is unfinished. ` +
+  (resumeAt
+    ? `The session resumes automatically around ${resumeAt}; re-run the remaining work then.`
+    : 'Re-run the remaining work once the limit resets.')

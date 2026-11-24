@@ -39,6 +39,12 @@ reading exists (API-key auth), an estimated window starts at the top of the hour
 when that response asked for tools, or came from a subagent: those are the only cases where more work would
 follow. Aborting at that point means no tool runs half-way. A reply that ends the turn just raises a toast.
 
+**Subagents are held, not killed.** Claude Code has no call to stop a subagent. While a pause is recorded,
+the `turn.step` hook answers each subagent request itself, without sending it: a short note and an
+`end_turn`, with no tool calls. The subagent's loop ends and hands that note to its parent, so the main chat
+knows the work is unfinished. Main-chat prompts you type during a pause still go through. Subagent turns
+raise `turn.start` as well, so only a turn with no `agentId` is taken as the main turn to abort.
+
 **Readings go stale.** After a reset, the last reading still shows the old window until a new response
 arrives. A reading whose `resetsAt` has passed is ignored, so a resumed turn isn't paused again at once.
 

@@ -2,11 +2,11 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelUsage, Register } from 'claude-code'
 
 import type { PauseRecord, Snapshot } from '../types'
-import { RESPONSE_HEADER, logDirFrom, responseLine, responsesPath, sessionsCsv, windowsCsv } from './csv'
+import { RESPONSE_HEADER, localTime, logDirFrom, responseLine, responsesPath, sessionsCsv, windowsCsv } from './csv'
 import type { ResponseRow } from './csv'
 import { emptyTotals, openWindow, recordResponse, toTokens } from './ledger'
 import type { LedgerData, WindowReading } from './ledger'
-import { LIMIT_LABEL, RESUME_PROMPT, findLimitHit, isResumeDue, makePause, parseThreshold } from './pause'
+import { LIMIT_LABEL, RESUME_PROMPT, findLimitHit, isResumeDue, makePause, parseThreshold, subagentHoldNote } from './pause'
 import type { LimitHit } from './pause'
 import { PERIODS, buildReport, formatReport, formatStatus, inScope, isPeriod, parseResponses, periodDates } from './report'
 import type { Period, UsageRow } from './report'
@@ -370,13 +370,26 @@ export const register: Register = (on, options) => {
     return { result: await control($, action, String(input.value ?? ''), { ...settings, isModel: true }) }
   })
 
+  // Subagent turns raise turn.start too; only the main loop's turn is the one a pause aborts.
   on('turn.start', ($, e, next) => {
-    mainTurnId = e.turnId
+    if (e.agentId === undefined) mainTurnId = e.turnId
     return next(e)
   })
 
   // Every model request of every turn, main loop and subagents alike.
   on('turn.step', async function* ($, e, next) {
+    // No call stops a subagent, so a paused session holds them here instead: the
+    // request is never sent, and a reply with no tool calls ends the subagent, which
+    // hands this note to its parent.
+    const held = e.agentId === undefined ? null : await read($, pause)
+    if (held) {
+      const resumeAt = autoResume ? localTime(held.resumeAt).slice(11, 16) : null
+      const note = subagentHoldNote(held, resumeAt)
+      yield { kind: 'text', index: 0, text: note }
+      yield { kind: 'stop', stopReason: 'end_turn', usage: null }
+      return { turnId: e.turnId, index: e.index, answer: note, toolUses: [], stopReason: 'end_turn', usage: null }
+    }
+
     const response = yield* next(e)
     if (response.usage) {
       await enqueue($, {
@@ -399,13 +412,11 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) {
-      mainTurnId = undefined
-      // A request refused at the limit ends the turn with an API error.
-      if (e.reason === 'error' && (await read($, pause)) === null) {
-        const hit = await limitHit($, threshold)
-        if (hit) await pauseSession($, hit, 'rate_limit')
-      }
+    if (e.agentId === undefined) mainTurnId = undefined
+    // A request refused at the limit ends its turn with an API error, a subagent's included.
+    if (e.reason === 'error' && (await read($, pause)) === null) {
+      const hit = await limitHit($, threshold)
+      if (hit) await pauseSession($, hit, 'rate_limit')
     }
     return next(e)
   })

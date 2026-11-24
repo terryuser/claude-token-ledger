@@ -1,6 +1,6 @@
 {
   "name": "token-ledger",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Records tokens spent per session and per 5-hour plan window, pauses near the 5-hour or weekly limit and resumes after the reset",
   "author": { "name": "Terry Lau", "url": "https://github.com/terryuser" },
   "homepage": "https://github.com/terryuser/claude-token-ledger",

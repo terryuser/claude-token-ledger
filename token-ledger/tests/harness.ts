@@ -21,6 +21,8 @@ export type World = {
   callsTools: boolean
   aborted: string[]
   submitted: string[]
+  /** Model requests that reached the (fake) model, per loop: `main` or the subagent's id. */
+  sent: string[]
 }
 
 export const setupWorld = (on: On, fiveHour = 9): World => {
@@ -32,6 +34,7 @@ export const setupWorld = (on: On, fiveHour = 9): World => {
     callsTools: false,
     aborted: [],
     submitted: [],
+    sent: [],
   }
   mock.store(on)
   mock.env(on, { USERPROFILE: 'C:\\Users\\me' })
@@ -78,6 +81,7 @@ export const setupWorld = (on: On, fiveHour = 9): World => {
     return { text: e.text }
   })
   on('turn.step', async function* ($, e) {
+    world.sent.push(e.agentId ?? 'main')
     return {
       turnId: e.turnId,
       index: e.index,
@@ -97,10 +101,11 @@ export const setupWorld = (on: On, fiveHour = 9): World => {
 }
 
 /** Runs one model request through every plugin's `turn.step` hooks. */
-export const step = async ($: Engine, index: number, turnId = 't1'): Promise<void> => {
-  const stream = $.turn.step({ turnId, index, model: 'claude-opus-5-5', messageCount: 1 })
-  for await (const _ of stream) {
-    // drain
+export const step = async ($: Engine, index: number, turnId = 't1', agentId?: string) => {
+  const stream = $.turn.step({ turnId, index, model: 'claude-opus-5-5', messageCount: 1, ...(agentId && { agentId }) })
+  // Drain the chunks; the generator's return value is the step's result.
+  for (;;) {
+    const item = await stream.next()
+    if (item.done) return item.value
   }
-  await stream.result
 }

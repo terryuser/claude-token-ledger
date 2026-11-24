@@ -3,6 +3,22 @@
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-23
+
+### Added
+- Subagents pause too. While a session is paused, each subagent's next model request is held: it is never
+  sent, and the subagent ends with a note saying the usage limit stopped it and its task is unfinished. The
+  main chat gets that note, so it can re-run the work after the auto-resume. This covers subagents that keep
+  running after the main chat has stopped, too.
+- A request refused at the limit inside a subagent now pauses the session, as it does in the main chat.
+
+### Fixed
+- The pause could miss the main turn while subagents ran. Newer Claude Code versions start a turn for each
+  subagent as well, and the plugin took the latest one as the main turn to stop.
+- The pause card's layout. The limit, the auto-resume time and the buttons each get their own line, lined
+  up with the bars, with a gap before the usage rows. The buttons are now "Resume now" and
+  "Cancel auto-resume".
+
 ## [0.4.2] - 2026-11-16
 
 ### Changed
@@ -36,6 +52,7 @@ First public release.
   `token-usage` skill, so Claude can answer usage questions in plain words.
 - Settings: `pauseAtPercent`, `autoResume`.
 
+[0.5.0]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.5.0
 [0.4.2]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.2
 [0.4.1]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.1
 [0.4.0]: https://github.com/terryuser/claude-token-ledger/releases/tag/v0.4.0

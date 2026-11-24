@@ -87,7 +87,10 @@ test('while paused the band says why and Resume now continues', async ($, on) =>
     const text = (await ui.find({ type: 'Box' }))?.text ?? ''
     expect(text).toContain('Paused')
     expect(text).toContain('5-hour limit at 96%')
-    expect(text).toContain('auto-resume')
+    expect(text).toContain('Auto-resume at')
+    // The buttons sit on their own row under the text, never beside it.
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ key: 'cancel' })).toBeDefined()
     if (surface === 'desktop') {
       await ui.press({ key: 'resume' })
       expect(world.submitted.length).toBe(1)

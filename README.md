@@ -23,7 +23,8 @@ usage limit, it pauses the work and carries on by itself after the limit resets.
 - **CSV logs.** One row per request, plus per-session and per-window summaries, in `~/.claude/token-log/`.
   They open directly in Excel or any data tool.
 - **Pause before the limit.** When the 5-hour or weekly limit reaches 95% (configurable), the running turn
-  stops right after a model reply, before its tool calls run. Nothing is left half-done.
+  stops right after a model reply, before its tool calls run. Nothing is left half-done. Subagents stop too:
+  each one ends at its next step and tells the main chat its task is unfinished.
 - **Auto-resume.** Two minutes after the limit resets, a "continue" prompt is sent and the task picks up
   where it stopped.
 - **Ask in plain words.** "How many tokens did I use this week?", "which project used the most?", "pause at

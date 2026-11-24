@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { RESUME_BUFFER_MS, RESUME_PROMPT, findLimitHit, isResumeDue, makePause, parseThreshold } from '../hooks/pause'
+import { RESUME_BUFFER_MS, RESUME_PROMPT, findLimitHit, isResumeDue, makePause, parseThreshold, subagentHoldNote } from '../hooks/pause'
 import { NOW, RESETS, WEEK_RESETS, setupWorld, step } from './harness'
 
 const reading = (kind: string, percentUsed: number, resetsAt = RESETS) => ({ kind, percentUsed, resetsAt })
@@ -41,6 +41,13 @@ describe('pause record', () => {
     expect(pause.resumeAt).toBe(Date.parse(RESETS) + RESUME_BUFFER_MS)
     expect(isResumeDue(pause, pause.resumeAt - 1)).toBe(false)
     expect(isResumeDue(pause, pause.resumeAt)).toBe(true)
+  })
+
+  test('a held subagent says why, and when work resumes', async () => {
+    const pause = makePause('s', { kind: 'seven_day', percentUsed: 97, resetsAt: RESETS }, NOW, 'threshold')
+    expect(subagentHoldNote(pause, '15:12')).toContain('weekly usage limit is at 97%')
+    expect(subagentHoldNote(pause, '15:12')).toContain('around 15:12')
+    expect(subagentHoldNote(pause, null)).toContain('once the limit resets')
   })
 
   test('typed thresholds are clamped to 50-100', async () => {
@@ -142,4 +149,50 @@ test('cancel stops the auto-resume', async ($, on) => {
   await $.command.run({ command: 'tokens', args: 'cancel' } as never)
   await world.clock.set(Date.parse(RESETS) + RESUME_BUFFER_MS + 30_000)
   expect(world.submitted).toEqual([])
+})
+
+test('a subagent turn starting does not replace the main turn a pause aborts', async ($, on) => {
+  const world = setupWorld(on, 96)
+  await bootSession($, on)
+  world.callsTools = true
+  await $.turn.start({ text: 'refactor', turnId: 't1' })
+  await $.turn.start({ text: 'explore', turnId: 'sub-turn', agentId: 'a1' } as never)
+  await step($, 0, 'sub-turn', 'a1')
+  expect(world.aborted).toEqual(['t1'])
+})
+
+test('while paused a subagent is held: its request is never sent and it ends with a note', async ($, on) => {
+  const world = setupWorld(on, 96)
+  await bootSession($, on)
+  world.callsTools = true
+  await $.turn.start({ text: 'refactor', turnId: 't1' })
+  await step($, 0) // pauses: the main turn asked for tools at 96%
+  expect(world.sent).toEqual(['main'])
+
+  const held = await step($, 0, 'sub-turn', 'a1')
+  expect(world.sent).toEqual(['main']) // the subagent's request never reached the model
+  expect(held.toolUses).toEqual([])
+  expect(held.stopReason).toBe('end_turn')
+  expect(held.answer).toContain('5-hour usage limit is at 96%')
+})
+
+test('a subagent running alone (main turn already over) also triggers the pause', async ($, on) => {
+  const world = setupWorld(on, 97)
+  await bootSession($, on)
+  world.callsTools = true
+  await step($, 0, 'sub-turn', 'a1') // no main turn running: nothing to abort, but the pause is taken
+  expect(world.aborted).toEqual([])
+  await step($, 1, 'sub-turn', 'a1')
+  expect(world.sent).toEqual(['a1']) // the second request was held
+})
+
+test('main-chat prompts typed while paused still go through', async ($, on) => {
+  const world = setupWorld(on, 96)
+  await bootSession($, on)
+  world.callsTools = true
+  await $.turn.start({ text: 'refactor', turnId: 't1' })
+  await step($, 0)
+  await $.turn.start({ text: 'quick question', turnId: 't2' })
+  await step($, 0, 't2')
+  expect(world.sent).toEqual(['main', 'main'])
 })
